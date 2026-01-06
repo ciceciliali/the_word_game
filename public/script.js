@@ -30,6 +30,8 @@ const turnDisplay = document.getElementById('turn-display');
 const currentTurnText = document.getElementById('current-turn-text');
 const yourTurnControls = document.getElementById('your-turn-controls');
 const doneSpeakingBtn = document.getElementById('done-speaking-btn');
+const blankCardToggle = document.getElementById('blank-card-toggle');
+const roundStartAnimation = document.getElementById('round-start-animation');
 
 let currentTurnPlayerId = null;
 let myPlayerId = null;
@@ -61,12 +63,26 @@ joinBtn.addEventListener('click', () => {
 
 // Start game (host only)
 startBtn.addEventListener('click', () => {
-    socket.emit('start-game', { roomCode: currentRoomCode });
+    const gameSettings = {
+        blankCardMode: blankCardToggle ? blankCardToggle.checked : false
+    };
+    
+    socket.emit('start-game', { 
+        roomCode: currentRoomCode,
+        gameSettings: gameSettings
+    });
 });
 
 // New round (host only)
 newRoundBtn.addEventListener('click', () => {
-    socket.emit('start-game', { roomCode: currentRoomCode });
+    const gameSettings = {
+        blankCardMode: blankCardToggle ? blankCardToggle.checked : false
+    };
+    
+    socket.emit('start-game', { 
+        roomCode: currentRoomCode,
+        gameSettings: gameSettings
+    });
 });
 
 // Enter key support
@@ -122,14 +138,31 @@ socket.on('player-left', (data) => {
 });
 
 socket.on('game-started', (data) => {
-    showScreen('game');
-    playerCountGame.querySelector('span').textContent = data.playerCount;
-    updateTurnDisplay(data.currentTurn);
-    myPlayerId = socket.id;
+    // Show animation first
+    showRoundStartAnimation(() => {
+        showScreen('game');
+        playerCountGame.querySelector('span').textContent = data.playerCount;
+        // Ensure myPlayerId is set
+        if (!myPlayerId) {
+            myPlayerId = socket.id;
+        }
+        updateTurnDisplay(data.currentTurn);
+    });
 });
 
 socket.on('word-assigned', (data) => {
-    yourWord.textContent = data.word;
+    // Handle blank card for impostor
+    if (data.isBlankCard) {
+        yourWord.textContent = '(Blank Card)';
+        yourWord.style.opacity = '0.5';
+        yourWord.style.fontStyle = 'italic';
+        yourWord.style.fontSize = '1.5em';
+    } else {
+        yourWord.textContent = data.word;
+        yourWord.style.opacity = '1';
+        yourWord.style.fontStyle = 'normal';
+        yourWord.style.fontSize = '3em';
+    }
     // Don't reveal who is the impostor - everyone sees their word the same way
     
     if (isHost) {
@@ -212,6 +245,31 @@ function updateTurnDisplay(turnInfo) {
         currentTurnText.style.color = '#666';
         currentTurnText.style.fontWeight = 'normal';
         yourTurnControls.style.display = 'none';
+    }
+}
+
+function showRoundStartAnimation(callback) {
+    if (roundStartAnimation) {
+        roundStartAnimation.style.display = 'flex';
+        if (wordCard) wordCard.style.opacity = '0.3';
+        
+        setTimeout(() => {
+            roundStartAnimation.style.display = 'none';
+            if (wordCard) {
+                wordCard.style.opacity = '1';
+                // Trigger card flip animation
+                wordCard.style.transition = 'transform 0.6s';
+                wordCard.style.transform = 'rotateY(180deg)';
+                setTimeout(() => {
+                    wordCard.style.transform = 'rotateY(0deg)';
+                    if (callback) callback();
+                }, 300);
+            } else {
+                if (callback) callback();
+            }
+        }, 1500);
+    } else {
+        if (callback) callback();
     }
 }
 

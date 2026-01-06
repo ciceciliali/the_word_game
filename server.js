@@ -41,7 +41,10 @@ io.on('connection', (socket) => {
         currentWords: null,
         wordAssignments: new Map(),
         playerOrder: [],
-        currentTurnIndex: 0
+        currentTurnIndex: 0,
+        gameSettings: {
+          blankCardMode: false
+        }
       });
     }
 
@@ -68,7 +71,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('start-game', (data) => {
-    const { roomCode } = data;
+    const { roomCode, gameSettings } = data;
     const room = rooms.get(roomCode);
 
     if (!room) return;
@@ -81,9 +84,17 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Select random word pair
+    // Update game settings
+    if (gameSettings) {
+      room.gameSettings = {
+        blankCardMode: gameSettings.blankCardMode || false
+      };
+    }
+
+    // Select random word pair from word bank
     const randomPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
     const [wordA, wordB] = randomPair;
+    console.log(`Using word bank: ${wordA} / ${wordB}`);
 
     // Randomly assign word B to one player (impostor) - ensures new random selection each round
     // Shuffle players array to ensure randomness, then pick first one as impostor
@@ -103,9 +114,26 @@ io.on('connection', (socket) => {
     // Store assignments - randomly assign to each player
     room.wordAssignments.clear();
     players.forEach((player) => {
+      const isImpostor = player.id === impostorId;
+      let word = isImpostor ? wordB : wordA;
+      let isBlankCard = false;
+      
+      // If blank card mode is enabled and player is impostor, 25% chance of blank card
+      if (room.gameSettings.blankCardMode && isImpostor) {
+        const blankCardChance = Math.random();
+        if (blankCardChance < 0.25) { // 25% chance
+          word = '';
+          isBlankCard = true;
+          console.log(`Impostor ${impostor.name} got blank card (25% chance)`);
+        } else {
+          console.log(`Impostor ${impostor.name} got word B (75% chance)`);
+        }
+      }
+      
       room.wordAssignments.set(player.id, {
-        word: player.id === impostorId ? wordB : wordA,
-        isImpostor: player.id === impostorId
+        word: word,
+        isImpostor: isImpostor,
+        isBlankCard: isBlankCard
       });
     });
 
@@ -125,7 +153,8 @@ io.on('connection', (socket) => {
       const assignment = room.wordAssignments.get(player.id);
       io.to(player.id).emit('word-assigned', {
         word: assignment.word,
-        isImpostor: assignment.isImpostor
+        isImpostor: assignment.isImpostor,
+        isBlankCard: assignment.isBlankCard || false
       });
     });
 
