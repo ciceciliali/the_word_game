@@ -161,15 +161,49 @@ input[type="text"]:focus {
 
 .word-display {
     margin: 30px 0;
+    perspective: 1000px;
 }
 
 .word-card {
+    width: 100%;
+    height: 300px;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.6s;
+}
+
+.word-card.flipped {
+    transform: rotateY(180deg);
+}
+
+.word-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transform-style: preserve-3d;
+}
+
+.word-card-front,
+.word-card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 15px;
     padding: 40px;
-    text-align: center;
     color: white;
     box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.word-card-back {
+    transform: rotateY(180deg);
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
 }
 
 .word-card h3 {
@@ -186,23 +220,28 @@ input[type="text"]:focus {
     letter-spacing: 3px;
 }
 
-.impostor-badge {
-    margin-top: 20px;
-    padding: 15px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
-    font-size: 1.2em;
+.word-text-hidden {
+    font-size: 4em;
     font-weight: bold;
-    animation: pulse 2s infinite;
+    margin: 20px 0;
+    opacity: 0.5;
 }
 
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.7;
-    }
+.flip-btn {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.flip-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
 }
 
 .game-info {

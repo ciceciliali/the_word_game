@@ -22,7 +22,9 @@ const hostControls = document.getElementById('host-controls');
 const hostControlsGame = document.getElementById('host-controls-game');
 const waitingMessage = document.getElementById('waiting-message');
 const yourWord = document.getElementById('your-word');
-const impostorBadge = document.getElementById('impostor-badge');
+const wordCard = document.getElementById('word-card');
+const flipBtn = document.getElementById('flip-btn');
+const flipBackBtn = document.getElementById('flip-back-btn');
 const errorMessage = document.getElementById('error-message');
 
 // Join room
@@ -64,6 +66,15 @@ roomCodeInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') joinBtn.click();
 });
 
+// Flip word card to hide/show
+flipBtn.addEventListener('click', () => {
+    wordCard.classList.add('flipped');
+});
+
+flipBackBtn.addEventListener('click', () => {
+    wordCard.classList.remove('flipped');
+});
+
 // Socket event handlers
 socket.on('player-joined', (data) => {
     isHost = data.isHost;
@@ -100,17 +111,16 @@ socket.on('game-started', (data) => {
 
 socket.on('word-assigned', (data) => {
     yourWord.textContent = data.word;
-    if (data.isImpostor) {
-        impostorBadge.style.display = 'block';
-    } else {
-        impostorBadge.style.display = 'none';
-    }
+    // Don't reveal who is the impostor - everyone sees their word the same way
     
     if (isHost) {
         hostControlsGame.style.display = 'block';
     } else {
         hostControlsGame.style.display = 'none';
     }
+    
+    // Reset card to front when new word is assigned
+    wordCard.classList.remove('flipped');
 });
 
 socket.on('error', (data) => {

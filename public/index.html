@@ -41,11 +41,18 @@
         <div id="game-screen" class="screen">
             <h2>Room: <span id="game-room-code"></span></h2>
             <div class="word-display">
-                <div class="word-card">
-                    <h3>Your Word</h3>
-                    <div id="your-word" class="word-text"></div>
-                    <div id="impostor-badge" class="impostor-badge" style="display: none;">
-                        <span>🎭 You are the IMPOSTOR!</span>
+                <div class="word-card" id="word-card">
+                    <div class="word-card-inner">
+                        <div class="word-card-front">
+                            <h3>Your Word</h3>
+                            <div id="your-word" class="word-text"></div>
+                            <button id="flip-btn" class="flip-btn">👁️ Hide Word</button>
+                        </div>
+                        <div class="word-card-back">
+                            <h3>Word Hidden</h3>
+                            <div class="word-text-hidden">???</div>
+                            <button id="flip-back-btn" class="flip-btn">👁️ Show Word</button>
+                        </div>
                     </div>
                 </div>
             </div>
