@@ -363,13 +363,6 @@ input[type="text"]:focus {
     margin-top: 15px;
 }
 
-.your-turn-message {
-    color: #667eea;
-    font-weight: bold;
-    margin-bottom: 15px;
-    font-size: 1.1em;
-}
-
 #done-speaking-btn {
     max-width: 200px;
     margin: 0 auto;
