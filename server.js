@@ -85,18 +85,27 @@ io.on('connection', (socket) => {
     const randomPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
     const [wordA, wordB] = randomPair;
 
-    // Randomly assign word B to one player (impostor) - different each round
-    const impostorIndex = Math.floor(Math.random() * players.length);
-    const impostorId = players[impostorIndex].id;
+    // Randomly assign word B to one player (impostor) - ensures new random selection each round
+    // Shuffle players array to ensure randomness, then pick first one as impostor
+    const shuffledPlayers = [...players];
+    for (let i = shuffledPlayers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
+    }
+    
+    // Select random impostor from shuffled array
+    const impostorIndex = Math.floor(Math.random() * shuffledPlayers.length);
+    const impostor = shuffledPlayers[impostorIndex];
+    const impostorId = impostor.id;
 
-    console.log(`Round started - Impostor selected: ${players[impostorIndex].name} (index: ${impostorIndex})`);
+    console.log(`Round started - Impostor randomly selected: ${impostor.name} (from ${players.length} players)`);
 
     // Store assignments - randomly assign to each player
     room.wordAssignments.clear();
-    players.forEach((player, index) => {
+    players.forEach((player) => {
       room.wordAssignments.set(player.id, {
-        word: index === impostorIndex ? wordB : wordA,
-        isImpostor: index === impostorIndex
+        word: player.id === impostorId ? wordB : wordA,
+        isImpostor: player.id === impostorId
       });
     });
 
