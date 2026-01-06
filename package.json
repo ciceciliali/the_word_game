@@ -1,0 +1,21 @@
+{
+  "name": "word-game",
+  "version": "1.0.0",
+  "description": "Multiplayer word game where players try to find the impostor",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "game",
+    "multiplayer",
+    "word-game"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1"
+  }
+}

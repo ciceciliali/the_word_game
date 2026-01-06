@@ -1,0 +1,257 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.container {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    padding: 40px;
+    max-width: 600px;
+    width: 100%;
+    position: relative;
+}
+
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+}
+
+h1 {
+    text-align: center;
+    color: #667eea;
+    margin-bottom: 30px;
+    font-size: 2.5em;
+}
+
+h2 {
+    text-align: center;
+    color: #667eea;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+}
+
+h3 {
+    color: #333;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.btn {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 10px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+}
+
+.info-text {
+    text-align: center;
+    color: #666;
+    margin-top: 15px;
+    font-size: 14px;
+}
+
+.players-list {
+    margin: 30px 0;
+}
+
+#players-list {
+    list-style: none;
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#players-list li {
+    padding: 12px;
+    margin: 8px 0;
+    background: white;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#players-list li .host-badge {
+    background: #ffc107;
+    color: #333;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.host-controls {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.waiting-message {
+    text-align: center;
+    color: #666;
+    margin-top: 20px;
+    font-style: italic;
+}
+
+.word-display {
+    margin: 30px 0;
+}
+
+.word-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 40px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.word-card h3 {
+    color: white;
+    margin-bottom: 20px;
+    font-size: 1.2em;
+}
+
+.word-text {
+    font-size: 3em;
+    font-weight: bold;
+    margin: 20px 0;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+}
+
+.impostor-badge {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    font-size: 1.2em;
+    font-weight: bold;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.game-info {
+    text-align: center;
+    color: #666;
+    margin: 20px 0;
+}
+
+.error-message {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #dc3545;
+    color: white;
+    padding: 15px 30px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    animation: slideDown 0.3s;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateX(-50%) translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+}
+
+#room-code-display, #game-room-code {
+    color: #764ba2;
+    font-weight: bold;
+}
+
+@media (max-width: 600px) {
+    .container {
+        padding: 20px;
+    }
+
+    h1 {
+        font-size: 2em;
+    }
+
+    .word-text {
+        font-size: 2em;
+    }
+}
+
