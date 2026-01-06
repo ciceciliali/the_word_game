@@ -60,6 +60,15 @@
                 <p>Discuss with other players and try to find the impostor!</p>
                 <p id="player-count-game">Players: <span></span></p>
             </div>
+            <div class="turn-indicator">
+                <div id="turn-display" class="turn-display">
+                    <p id="current-turn-text">Waiting for game to start...</p>
+                </div>
+                <div id="your-turn-controls" class="your-turn-controls" style="display: none;">
+                    <p class="your-turn-message">🎤 It's your turn to speak!</p>
+                    <button id="done-speaking-btn" class="btn btn-primary">Done Speaking</button>
+                </div>
+            </div>
             <div id="host-controls-game" class="host-controls" style="display: none;">
                 <button id="new-round-btn" class="btn btn-secondary">New Round</button>
             </div>

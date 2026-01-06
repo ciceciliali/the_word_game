@@ -26,6 +26,18 @@ const wordCard = document.getElementById('word-card');
 const flipBtn = document.getElementById('flip-btn');
 const flipBackBtn = document.getElementById('flip-back-btn');
 const errorMessage = document.getElementById('error-message');
+const turnDisplay = document.getElementById('turn-display');
+const currentTurnText = document.getElementById('current-turn-text');
+const yourTurnControls = document.getElementById('your-turn-controls');
+const doneSpeakingBtn = document.getElementById('done-speaking-btn');
+
+let currentTurnPlayerId = null;
+let myPlayerId = null;
+
+// Set player ID when socket connects
+socket.on('connect', () => {
+    myPlayerId = socket.id;
+});
 
 // Join room
 joinBtn.addEventListener('click', () => {
@@ -75,6 +87,11 @@ flipBackBtn.addEventListener('click', () => {
     wordCard.classList.remove('flipped');
 });
 
+// Done speaking button
+doneSpeakingBtn.addEventListener('click', () => {
+    socket.emit('next-turn', { roomCode: currentRoomCode });
+});
+
 // Socket event handlers
 socket.on('player-joined', (data) => {
     isHost = data.isHost;
@@ -107,6 +124,8 @@ socket.on('player-left', (data) => {
 socket.on('game-started', (data) => {
     showScreen('game');
     playerCountGame.querySelector('span').textContent = data.playerCount;
+    updateTurnDisplay(data.currentTurn);
+    myPlayerId = socket.id;
 });
 
 socket.on('word-assigned', (data) => {
@@ -121,6 +140,10 @@ socket.on('word-assigned', (data) => {
     
     // Reset card to front when new word is assigned
     wordCard.classList.remove('flipped');
+});
+
+socket.on('turn-changed', (data) => {
+    updateTurnDisplay(data.currentTurn);
 });
 
 socket.on('error', (data) => {
@@ -173,6 +196,23 @@ function showError(message) {
     setTimeout(() => {
         errorMessage.style.display = 'none';
     }, 3000);
+}
+
+function updateTurnDisplay(turnInfo) {
+    currentTurnPlayerId = turnInfo.playerId;
+    const isMyTurn = currentTurnPlayerId === myPlayerId;
+    
+    if (isMyTurn) {
+        currentTurnText.textContent = '🎤 Your turn to speak!';
+        currentTurnText.style.color = '#667eea';
+        currentTurnText.style.fontWeight = 'bold';
+        yourTurnControls.style.display = 'block';
+    } else {
+        currentTurnText.textContent = `🎤 ${turnInfo.playerName}'s turn`;
+        currentTurnText.style.color = '#666';
+        currentTurnText.style.fontWeight = 'normal';
+        yourTurnControls.style.display = 'none';
+    }
 }
 
 // Handle page load - check if we're on a room route
