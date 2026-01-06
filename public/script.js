@@ -95,13 +95,23 @@ roomCodeInput.addEventListener('keypress', (e) => {
 });
 
 // Flip word card to hide/show
-flipBtn.addEventListener('click', () => {
-    wordCard.classList.add('flipped');
-});
+if (flipBtn && wordCard) {
+    flipBtn.addEventListener('click', () => {
+        // Remove any inline transform styles that might interfere
+        wordCard.style.transform = '';
+        wordCard.style.transition = '';
+        wordCard.classList.add('flipped');
+    });
+}
 
-flipBackBtn.addEventListener('click', () => {
-    wordCard.classList.remove('flipped');
-});
+if (flipBackBtn && wordCard) {
+    flipBackBtn.addEventListener('click', () => {
+        // Remove any inline transform styles that might interfere
+        wordCard.style.transform = '';
+        wordCard.style.transition = '';
+        wordCard.classList.remove('flipped');
+    });
+}
 
 // Done speaking button
 doneSpeakingBtn.addEventListener('click', () => {
@@ -172,7 +182,12 @@ socket.on('word-assigned', (data) => {
     }
     
     // Reset card to front when new word is assigned
-    wordCard.classList.remove('flipped');
+    if (wordCard) {
+        wordCard.classList.remove('flipped');
+        // Clear any inline styles that might interfere
+        wordCard.style.transform = '';
+        wordCard.style.transition = '';
+    }
 });
 
 socket.on('turn-changed', (data) => {
@@ -251,19 +266,26 @@ function updateTurnDisplay(turnInfo) {
 function showRoundStartAnimation(callback) {
     if (roundStartAnimation) {
         roundStartAnimation.style.display = 'flex';
-        if (wordCard) wordCard.style.opacity = '0.3';
+        if (wordCard) {
+            wordCard.style.opacity = '0.3';
+            // Ensure flip state is reset
+            wordCard.classList.remove('flipped');
+        }
         
         setTimeout(() => {
             roundStartAnimation.style.display = 'none';
             if (wordCard) {
                 wordCard.style.opacity = '1';
-                // Trigger card flip animation
+                // Trigger card flip animation using inline styles temporarily
                 wordCard.style.transition = 'transform 0.6s';
                 wordCard.style.transform = 'rotateY(180deg)';
                 setTimeout(() => {
-                    wordCard.style.transform = 'rotateY(0deg)';
+                    // Reset to use CSS classes instead of inline styles
+                    wordCard.style.transform = '';
+                    wordCard.style.transition = '';
+                    wordCard.classList.remove('flipped');
                     if (callback) callback();
-                }, 300);
+                }, 600);
             } else {
                 if (callback) callback();
             }
