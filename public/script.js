@@ -32,6 +32,10 @@ const yourTurnControls = document.getElementById('your-turn-controls');
 const doneSpeakingBtn = document.getElementById('done-speaking-btn');
 const blankCardToggle = document.getElementById('blank-card-toggle');
 const roundStartAnimation = document.getElementById('round-start-animation');
+const revealBtn = document.getElementById('reveal-btn');
+const revealPanel = document.getElementById('reveal-panel');
+const revealCommonWord = document.getElementById('reveal-common-word');
+const revealImpostorWord = document.getElementById('reveal-impostor-word');
 
 let currentTurnPlayerId = null;
 let myPlayerId = null;
@@ -73,6 +77,14 @@ startBtn.addEventListener('click', () => {
     });
 });
 
+// Reveal words (host only)
+if (revealBtn) {
+    revealBtn.addEventListener('click', () => {
+        socket.emit('reveal-words', { roomCode: currentRoomCode });
+        revealBtn.disabled = true;
+    });
+}
+
 // New round (host only)
 newRoundBtn.addEventListener('click', () => {
     const gameSettings = {
@@ -83,6 +95,14 @@ newRoundBtn.addEventListener('click', () => {
         roomCode: currentRoomCode,
         gameSettings: gameSettings
     });
+
+    // Reset reveal panel and button state for next round
+    if (revealPanel) {
+        revealPanel.style.display = 'none';
+    }
+    if (revealBtn) {
+        revealBtn.disabled = false;
+    }
 });
 
 // Enter key support
@@ -157,6 +177,14 @@ socket.on('game-started', (data) => {
             myPlayerId = socket.id;
         }
         updateTurnDisplay(data.currentTurn);
+
+        // Reset reveal panel and button each round
+        if (revealPanel) {
+            revealPanel.style.display = 'none';
+        }
+        if (revealBtn) {
+            revealBtn.disabled = false;
+        }
     });
 });
 
@@ -196,6 +224,18 @@ socket.on('turn-changed', (data) => {
 
 socket.on('error', (data) => {
     showError(data.message);
+});
+
+socket.on('words-revealed', (data) => {
+    if (!revealPanel || !revealCommonWord || !revealImpostorWord) return;
+
+    revealCommonWord.textContent = `Common word: ${data.wordA}`;
+    if (data.impostorHadBlankCard) {
+        revealImpostorWord.textContent = 'Impostor word: (Blank card this round)';
+    } else {
+        revealImpostorWord.textContent = `Impostor word: ${data.wordB}`;
+    }
+    revealPanel.style.display = 'block';
 });
 
 // Helper functions

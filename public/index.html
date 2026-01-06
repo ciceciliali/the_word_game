@@ -74,6 +74,11 @@
             <div class="game-info">
                 <p>Discuss with other players and try to find the impostor!</p>
                 <p id="player-count-game">Players: <span></span></p>
+                <div id="reveal-panel" class="reveal-panel" style="display: none;">
+                    <h3>Round Words</h3>
+                    <p id="reveal-common-word"></p>
+                    <p id="reveal-impostor-word"></p>
+                </div>
             </div>
             <div class="turn-indicator">
                 <div id="turn-display" class="turn-display">
@@ -84,6 +89,7 @@
                 </div>
             </div>
             <div id="host-controls-game" class="host-controls" style="display: none;">
+                <button id="reveal-btn" class="btn btn-primary">Reveal Words</button>
                 <button id="new-round-btn" class="btn btn-secondary">New Round</button>
             </div>
         </div>

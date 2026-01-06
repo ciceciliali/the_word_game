@@ -201,6 +201,30 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('reveal-words', (data) => {
+    const { roomCode } = data;
+    const room = rooms.get(roomCode);
+
+    if (!room || !room.currentWords) return;
+
+    const { wordA, wordB } = room.currentWords;
+
+    // Check if impostor had a blank card this round
+    let impostorHadBlankCard = false;
+    room.wordAssignments.forEach((assignment) => {
+      if (assignment.isImpostor && assignment.isBlankCard) {
+        impostorHadBlankCard = true;
+      }
+    });
+
+    io.to(roomCode).emit('words-revealed', {
+      wordA,
+      wordB,
+      blankCardMode: room.gameSettings && room.gameSettings.blankCardMode || false,
+      impostorHadBlankCard
+    });
+  });
+
   socket.on('disconnect', () => {
     if (socket.roomCode) {
       const room = rooms.get(socket.roomCode);
