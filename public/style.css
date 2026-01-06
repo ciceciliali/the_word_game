@@ -357,6 +357,17 @@ input[type="text"]:focus {
     font-weight: 500;
 }
 
+.impostor-reveal {
+    margin-top: 12px;
+    padding: 10px;
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    font-weight: bold;
+    color: #856404;
+    font-size: 1.1em;
+}
+
 .turn-indicator {
     margin: 25px 0;
     padding: 20px;

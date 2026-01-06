@@ -138,6 +138,7 @@ io.on('connection', (socket) => {
     });
 
     room.currentWords = { wordA, wordB };
+    room.currentImpostor = { id: impostorId, name: impostor.name };
     room.gameState = 'playing';
     
     // Initialize turn order (randomize order)
@@ -217,11 +218,15 @@ io.on('connection', (socket) => {
       }
     });
 
+    // Get impostor info
+    const impostorName = room.currentImpostor ? room.currentImpostor.name : 'Unknown';
+
     io.to(roomCode).emit('words-revealed', {
       wordA,
       wordB,
       blankCardMode: room.gameSettings && room.gameSettings.blankCardMode || false,
-      impostorHadBlankCard
+      impostorHadBlankCard,
+      impostorName: impostorName
     });
   });
 

@@ -36,6 +36,7 @@ const revealBtn = document.getElementById('reveal-btn');
 const revealPanel = document.getElementById('reveal-panel');
 const revealCommonWord = document.getElementById('reveal-common-word');
 const revealImpostorWord = document.getElementById('reveal-impostor-word');
+const revealImpostorName = document.getElementById('reveal-impostor-name');
 
 let currentTurnPlayerId = null;
 let myPlayerId = null;
@@ -227,7 +228,7 @@ socket.on('error', (data) => {
 });
 
 socket.on('words-revealed', (data) => {
-    if (!revealPanel || !revealCommonWord || !revealImpostorWord) return;
+    if (!revealPanel || !revealCommonWord || !revealImpostorWord || !revealImpostorName) return;
 
     revealCommonWord.textContent = `Common word: ${data.wordA}`;
     if (data.impostorHadBlankCard) {
@@ -235,6 +236,7 @@ socket.on('words-revealed', (data) => {
     } else {
         revealImpostorWord.textContent = `Impostor word: ${data.wordB}`;
     }
+    revealImpostorName.textContent = `🎭 The impostor was: ${data.impostorName}`;
     revealPanel.style.display = 'block';
 });
 
