@@ -63,10 +63,13 @@ const voteTallyList = document.getElementById('vote-tally-list');
 const voteOutcome = document.getElementById('vote-outcome');
 const giveUpVoteBtn = document.getElementById('give-up-vote-btn');
 const doneVotingBtn = document.getElementById('done-voting-btn');
+const voteWordsReveal = document.getElementById('vote-words-reveal');
+const voteCommonWord = document.getElementById('vote-common-word');
+const voteImpostorWord = document.getElementById('vote-impostor-word');
+const voteImpostorName = document.getElementById('vote-impostor-name');
 
 let currentTurnPlayerId = null;
 let myPlayerId = playerId;
-let hasVoted = false;
 
 // Join room
 joinBtn.addEventListener('click', () => {
@@ -177,13 +180,12 @@ doneSpeakingBtn.addEventListener('click', () => {
     socket.emit('next-turn', { roomCode: currentRoomCode });
 });
 
-// Give up vote - counts as having responded, but votes for no one
+// Give up vote - counts as having responded, but votes for no one.
+// Votes can be changed freely (including switching back and forth with
+// giving up) until the room owner hits "Done Voting".
 if (giveUpVoteBtn) {
     giveUpVoteBtn.addEventListener('click', () => {
-        if (hasVoted) return;
-        hasVoted = true;
-        lockVotingButtons();
-        giveUpVoteBtn.classList.add('selected');
+        selectVoteOption(giveUpVoteBtn);
         socket.emit('cast-vote', { roomCode: currentRoomCode, votedForId: null });
     });
 }
@@ -234,7 +236,6 @@ socket.on('game-started', (data) => {
         playerCountGame.querySelector('span').textContent = data.playerCount;
 
         // Reset voting UI and show the turn indicator for the new round
-        hasVoted = false;
         if (votingPanel) votingPanel.style.display = 'none';
         if (voteResultsPanel) voteResultsPanel.style.display = 'none';
         if (turnIndicator) turnIndicator.style.display = 'block';
@@ -290,7 +291,6 @@ socket.on('error', (data) => {
 });
 
 socket.on('voting-started', (data) => {
-    hasVoted = false;
     if (turnIndicator) turnIndicator.style.display = 'none';
     if (voteResultsPanel) voteResultsPanel.style.display = 'none';
     renderVotingPanel(data.players);
@@ -315,8 +315,15 @@ socket.on('vote-results', (data) => {
     if (voteOutcome) {
         voteOutcome.textContent = data.wasImpostor
             ? `✅ ${data.votedOutName} was voted out and WAS the impostor! The crew wins!`
-            : `❌ ${data.votedOutName} was voted out but was NOT the impostor (it was ${data.impostorName}). The impostor wins!`;
+            : `❌ ${data.votedOutName} was voted out but was NOT the impostor. The impostor wins!`;
     }
+
+    // Majority reached - reveal who the impostor actually was and both words
+    if (voteCommonWord) voteCommonWord.textContent = `Common word: ${data.wordA}`;
+    if (voteImpostorWord) voteImpostorWord.textContent = `Impostor word: ${data.wordB}`;
+    if (voteImpostorName) voteImpostorName.textContent = `🎭 The impostor was: ${data.impostorName}`;
+    if (voteWordsReveal) voteWordsReveal.style.display = 'block';
+
     if (voteResultsPanel) voteResultsPanel.style.display = 'block';
 });
 
@@ -326,6 +333,7 @@ socket.on('vote-inconclusive', (data) => {
     if (voteOutcome) {
         voteOutcome.textContent = 'No majority - back to discussion!';
     }
+    if (voteWordsReveal) voteWordsReveal.style.display = 'none';
     if (voteResultsPanel) voteResultsPanel.style.display = 'block';
     setTimeout(() => {
         if (voteResultsPanel) voteResultsPanel.style.display = 'none';
@@ -429,27 +437,26 @@ function renderVotingPanel(players) {
             btn.className = 'btn btn-secondary vote-btn';
             btn.textContent = player.name;
             btn.addEventListener('click', () => {
-                if (hasVoted) return;
-                hasVoted = true;
-                btn.classList.add('selected');
-                lockVotingButtons();
+                selectVoteOption(btn);
                 socket.emit('cast-vote', { roomCode: currentRoomCode, votedForId: player.id });
             });
             votingPlayers.appendChild(btn);
         });
 }
 
-// Disable every vote option (player buttons + give up) once a choice has
-// been locked in - a player can cast one vote or give up, not both.
-function lockVotingButtons() {
+// Highlights whichever option was just clicked (a player, or give up) and
+// un-highlights the rest. Votes stay changeable - nothing is disabled here -
+// until the room owner hits "Done Voting" and the vote is finalized.
+function selectVoteOption(chosenBtn) {
     if (votingPlayers) {
         Array.from(votingPlayers.querySelectorAll('button')).forEach(b => {
-            b.disabled = true;
+            b.classList.remove('selected');
         });
     }
     if (giveUpVoteBtn) {
-        giveUpVoteBtn.disabled = true;
+        giveUpVoteBtn.classList.remove('selected');
     }
+    chosenBtn.classList.add('selected');
 }
 
 function renderVoteTally(tally) {
