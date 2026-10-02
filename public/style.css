@@ -453,7 +453,8 @@ input[type="text"]:focus {
     padding: 10px 18px;
 }
 
-.vote-btn.selected {
+.vote-btn.selected,
+.vote-giveup-btn.selected {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
 }
