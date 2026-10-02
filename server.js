@@ -14,6 +14,10 @@ const wordPairs = JSON.parse(fs.readFileSync(path.join(__dirname, 'wordPairs.jso
 // Store rooms and players
 const rooms = new Map();
 
+// Maps a live socket.id -> { roomCode, playerId }, so disconnect can find the
+// right player without relying on socket.id as the player's identity.
+const socketToPlayer = new Map();
+
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -27,20 +31,43 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+function getPublicPlayers(room) {
+  return Array.from(room.players.values()).map(p => ({
+    id: p.playerId,
+    name: p.name,
+    isHost: p.isHost
+  }));
+}
+
+function broadcastPlayers(room, eventName) {
+  const allPlayers = getPublicPlayers(room);
+  room.players.forEach((player) => {
+    io.to(player.socketId).emit(eventName, {
+      players: allPlayers,
+      isHost: player.isHost
+    });
+  });
+}
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('create-room', (data) => {
-    const { roomCode, playerName } = data;
-    
+    const { roomCode, playerName, playerId } = data;
+
+    if (!playerId) {
+      socket.emit('error', { message: 'Missing player id, please refresh.' });
+      return;
+    }
+
     if (!rooms.has(roomCode)) {
       rooms.set(roomCode, {
-        players: new Map(),
+        players: new Map(), // keyed by persistent playerId
         gameState: 'waiting', // waiting, playing, finished
         currentWords: null,
-        wordAssignments: new Map(),
-        playerOrder: [],
+        wordAssignments: new Map(), // keyed by playerId
+        playerOrder: [], // array of playerId
         currentTurnIndex: 0,
         gameSettings: {
           blankCardMode: false
@@ -49,25 +76,31 @@ io.on('connection', (socket) => {
     }
 
     const room = rooms.get(roomCode);
-    room.players.set(socket.id, {
-      id: socket.id,
-      name: playerName,
-      isHost: room.players.size === 0
-    });
 
+    const existing = room.players.get(playerId);
+    if (existing) {
+      // Reconnect: same player, new socket. Update the live socket.id but
+      // keep their slot (host status, name) intact instead of creating a
+      // duplicate "ghost" entry.
+      existing.socketId = socket.id;
+      existing.name = playerName;
+    } else {
+      room.players.set(playerId, {
+        playerId,
+        socketId: socket.id,
+        name: playerName,
+        isHost: room.players.size === 0
+      });
+    }
+
+    socketToPlayer.set(socket.id, { roomCode, playerId });
     socket.join(roomCode);
     socket.roomCode = roomCode;
+    socket.playerId = playerId;
 
-    // Notify all players in room with their own status
-    const allPlayers = Array.from(room.players.values());
-    room.players.forEach((player, playerId) => {
-      io.to(playerId).emit('player-joined', {
-        players: allPlayers,
-        isHost: player.isHost
-      });
-    });
+    broadcastPlayers(room, 'player-joined');
 
-    console.log(`Player ${playerName} joined room ${roomCode}`);
+    console.log(`Player ${playerName} (${playerId}) joined room ${roomCode}`);
   });
 
   socket.on('start-game', (data) => {
@@ -77,7 +110,7 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     const players = Array.from(room.players.values());
-    
+
     // Check minimum players
     if (players.length < 3) {
       socket.emit('error', { message: 'Need at least 3 players to start!' });
@@ -96,28 +129,20 @@ io.on('connection', (socket) => {
     const [wordA, wordB] = randomPair;
     console.log(`Using word bank: ${wordA} / ${wordB}`);
 
-    // Randomly assign word B to one player (impostor) - ensures new random selection each round
-    // Shuffle players array to ensure randomness, then pick first one as impostor
-    const shuffledPlayers = [...players];
-    for (let i = shuffledPlayers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
-    }
-    
-    // Select random impostor from shuffled array
-    const impostorIndex = Math.floor(Math.random() * shuffledPlayers.length);
-    const impostor = shuffledPlayers[impostorIndex];
-    const impostorId = impostor.id;
+    // Pick impostor uniformly at random from the current players.
+    const impostorIndex = Math.floor(Math.random() * players.length);
+    const impostor = players[impostorIndex];
+    const impostorPlayerId = impostor.playerId;
 
     console.log(`Round started - Impostor randomly selected: ${impostor.name} (from ${players.length} players)`);
 
     // Store assignments - randomly assign to each player
     room.wordAssignments.clear();
     players.forEach((player) => {
-      const isImpostor = player.id === impostorId;
+      const isImpostor = player.playerId === impostorPlayerId;
       let word = isImpostor ? wordB : wordA;
       let isBlankCard = false;
-      
+
       // If blank card mode is enabled and player is impostor, 25% chance of blank card
       if (room.gameSettings.blankCardMode && isImpostor) {
         const blankCardChance = Math.random();
@@ -129,8 +154,8 @@ io.on('connection', (socket) => {
           console.log(`Impostor ${impostor.name} got word B (75% chance)`);
         }
       }
-      
-      room.wordAssignments.set(player.id, {
+
+      room.wordAssignments.set(player.playerId, {
         word: word,
         isImpostor: isImpostor,
         isBlankCard: isBlankCard
@@ -138,11 +163,12 @@ io.on('connection', (socket) => {
     });
 
     room.currentWords = { wordA, wordB };
-    room.currentImpostor = { id: impostorId, name: impostor.name };
+    room.currentImpostor = { playerId: impostorPlayerId, name: impostor.name };
     room.gameState = 'playing';
-    
-    // Initialize turn order (randomize order)
-    room.playerOrder = players.map(p => p.id);
+
+    // Initialize turn order (randomize order) - stores playerId, not socket.id,
+    // so it stays valid across reconnects.
+    room.playerOrder = players.map(p => p.playerId);
     for (let i = room.playerOrder.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [room.playerOrder[i], room.playerOrder[j]] = [room.playerOrder[j], room.playerOrder[i]];
@@ -151,8 +177,8 @@ io.on('connection', (socket) => {
 
     // Send words to each player
     players.forEach(player => {
-      const assignment = room.wordAssignments.get(player.id);
-      io.to(player.id).emit('word-assigned', {
+      const assignment = room.wordAssignments.get(player.playerId);
+      io.to(player.socketId).emit('word-assigned', {
         word: assignment.word,
         isImpostor: assignment.isImpostor,
         isBlankCard: assignment.isBlankCard || false
@@ -161,8 +187,8 @@ io.on('connection', (socket) => {
 
     // Notify all players game started with turn info
     const currentTurnPlayerId = room.playerOrder[room.currentTurnIndex];
-    const currentTurnPlayer = players.find(p => p.id === currentTurnPlayerId);
-    
+    const currentTurnPlayer = room.players.get(currentTurnPlayerId);
+
     io.to(roomCode).emit('game-started', {
       playerCount: players.length,
       currentTurn: {
@@ -171,8 +197,8 @@ io.on('connection', (socket) => {
         playerIndex: 0
       },
       playerOrder: room.playerOrder.map(id => {
-        const p = players.find(pl => pl.id === id);
-        return { id: p.id, name: p.name };
+        const p = room.players.get(id);
+        return { id: p.playerId, name: p.name };
       })
     });
 
@@ -184,18 +210,27 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomCode);
 
     if (!room || room.gameState !== 'playing') return;
+    if (room.playerOrder.length === 0) return;
+
+    // Only the player whose turn it currently is may advance the turn.
+    // Without this check, a stale/desynced client (or a double-click racing
+    // the real current player) could advance the turn an extra time and
+    // skip the next person.
+    const currentTurnPlayerId = room.playerOrder[room.currentTurnIndex];
+    if (socket.playerId !== currentTurnPlayerId) {
+      return;
+    }
 
     // Move to next player
     room.currentTurnIndex = (room.currentTurnIndex + 1) % room.playerOrder.length;
-    const currentTurnPlayerId = room.playerOrder[room.currentTurnIndex];
-    const players = Array.from(room.players.values());
-    const currentTurnPlayer = players.find(p => p.id === currentTurnPlayerId);
+    const nextTurnPlayerId = room.playerOrder[room.currentTurnIndex];
+    const nextTurnPlayer = room.players.get(nextTurnPlayerId);
 
-    if (currentTurnPlayer) {
+    if (nextTurnPlayer) {
       io.to(roomCode).emit('turn-changed', {
         currentTurn: {
-          playerId: currentTurnPlayerId,
-          playerName: currentTurnPlayer.name,
+          playerId: nextTurnPlayerId,
+          playerName: nextTurnPlayer.name,
           playerIndex: room.currentTurnIndex
         }
       });
@@ -231,59 +266,69 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    if (socket.roomCode) {
-      const room = rooms.get(socket.roomCode);
+    const info = socketToPlayer.get(socket.id);
+    socketToPlayer.delete(socket.id);
+
+    if (info) {
+      const { roomCode, playerId } = info;
+      const room = rooms.get(roomCode);
       if (room) {
-        room.players.delete(socket.id);
-        room.wordAssignments.delete(socket.id);
+        const player = room.players.get(playerId);
 
-        if (room.players.size === 0) {
-          rooms.delete(socket.roomCode);
-          console.log(`Room ${socket.roomCode} deleted`);
-        } else {
-          // Update host if host left
-          const players = Array.from(room.players.values());
-          if (players.length > 0) {
-            players[0].isHost = true;
-          }
+        // If this player already reconnected with a new socket before this
+        // (now stale) socket's disconnect fired, their entry's socketId will
+        // no longer match. In that case, do nothing - the player is still in
+        // the room under their new connection.
+        if (player && player.socketId === socket.id) {
+          room.players.delete(playerId);
+          room.wordAssignments.delete(playerId);
 
-          // If game is playing and the disconnected player was the current turn, move to next
-          if (room.gameState === 'playing' && room.playerOrder.length > 0) {
-            const disconnectedIndex = room.playerOrder.indexOf(socket.id);
-            if (disconnectedIndex !== -1) {
-              room.playerOrder.splice(disconnectedIndex, 1);
-              // Adjust current turn index if needed
-              if (room.currentTurnIndex >= room.playerOrder.length) {
-                room.currentTurnIndex = 0;
-              } else if (disconnectedIndex < room.currentTurnIndex) {
-                room.currentTurnIndex--;
+          if (room.players.size === 0) {
+            rooms.delete(roomCode);
+            console.log(`Room ${roomCode} deleted`);
+          } else {
+            // Update host if host left
+            const wasHost = player.isHost;
+            if (wasHost) {
+              const remaining = Array.from(room.players.values());
+              if (remaining.length > 0) {
+                remaining[0].isHost = true;
               }
-              
-              // Notify about turn change if there are still players
-              if (room.playerOrder.length > 0) {
-                const currentTurnPlayerId = room.playerOrder[room.currentTurnIndex];
-                const currentTurnPlayer = players.find(p => p.id === currentTurnPlayerId);
-                if (currentTurnPlayer) {
-                  io.to(socket.roomCode).emit('turn-changed', {
-                    currentTurn: {
-                      playerId: currentTurnPlayerId,
-                      playerName: currentTurnPlayer.name,
-                      playerIndex: room.currentTurnIndex
-                    }
-                  });
+            }
+
+            // If game is playing and the disconnected player was the current turn, move to next
+            if (room.gameState === 'playing' && room.playerOrder.length > 0) {
+              const disconnectedIndex = room.playerOrder.indexOf(playerId);
+              if (disconnectedIndex !== -1) {
+                room.playerOrder.splice(disconnectedIndex, 1);
+                // Adjust current turn index if needed
+                if (room.playerOrder.length === 0) {
+                  room.currentTurnIndex = 0;
+                } else if (room.currentTurnIndex >= room.playerOrder.length) {
+                  room.currentTurnIndex = 0;
+                } else if (disconnectedIndex < room.currentTurnIndex) {
+                  room.currentTurnIndex--;
+                }
+
+                // Notify about turn change if there are still players
+                if (room.playerOrder.length > 0) {
+                  const currentTurnPlayerId = room.playerOrder[room.currentTurnIndex];
+                  const currentTurnPlayer = room.players.get(currentTurnPlayerId);
+                  if (currentTurnPlayer) {
+                    io.to(roomCode).emit('turn-changed', {
+                      currentTurn: {
+                        playerId: currentTurnPlayerId,
+                        playerName: currentTurnPlayer.name,
+                        playerIndex: room.currentTurnIndex
+                      }
+                    });
+                  }
                 }
               }
             }
-          }
 
-          // Notify all remaining players with their own status
-          const allPlayers = Array.from(room.players.values());
-          room.players.forEach((player, playerId) => {
-            io.to(playerId).emit('player-left', {
-              players: allPlayers,
-              isHost: player.isHost
-            });
-          });
+            broadcastPlayers(room, 'player-left');
+          }
         }
       }
     }
@@ -295,4 +340,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-

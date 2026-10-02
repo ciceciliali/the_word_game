@@ -4,6 +4,19 @@ let currentRoomCode = '';
 let isHost = false;
 let playerName = '';
 
+// Persistent player identity, survives page reloads and socket reconnects
+// (network blips, tab backgrounding, etc.) so the server can recognize a
+// reconnect as the SAME player instead of adding a duplicate "ghost" entry.
+function getOrCreatePlayerId() {
+    let id = localStorage.getItem('wordGamePlayerId');
+    if (!id) {
+        id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+        localStorage.setItem('wordGamePlayerId', id);
+    }
+    return id;
+}
+const playerId = getOrCreatePlayerId();
+
 // DOM Elements
 const joinScreen = document.getElementById('join-screen');
 const waitingScreen = document.getElementById('waiting-screen');
@@ -39,12 +52,7 @@ const revealImpostorWord = document.getElementById('reveal-impostor-word');
 const revealImpostorName = document.getElementById('reveal-impostor-name');
 
 let currentTurnPlayerId = null;
-let myPlayerId = null;
-
-// Set player ID when socket connects
-socket.on('connect', () => {
-    myPlayerId = socket.id;
-});
+let myPlayerId = playerId;
 
 // Join room
 joinBtn.addEventListener('click', () => {
@@ -63,7 +71,17 @@ joinBtn.addEventListener('click', () => {
 
     playerName = name;
     currentRoomCode = roomCode;
-    socket.emit('create-room', { roomCode, playerName });
+    socket.emit('create-room', { roomCode, playerName, playerId });
+});
+
+// If the socket reconnects (network blip, tab resume, etc.) after we'd
+// already joined a room, rejoin automatically using the same playerId so
+// the server treats it as a reconnect, not a new player.
+socket.on('connect', () => {
+    myPlayerId = playerId;
+    if (currentRoomCode && playerName) {
+        socket.emit('create-room', { roomCode: currentRoomCode, playerName, playerId });
+    }
 });
 
 // Start game (host only)
@@ -135,7 +153,13 @@ if (flipBackBtn && wordCard) {
 }
 
 // Done speaking button
+// Disable immediately on click so a double-click/double-tap (or a slow
+// network re-trying the click) can't fire next-turn twice and skip a
+// player's turn. Re-enabled in updateTurnDisplay() whenever it becomes our
+// turn again.
 doneSpeakingBtn.addEventListener('click', () => {
+    if (doneSpeakingBtn.disabled) return;
+    doneSpeakingBtn.disabled = true;
     socket.emit('next-turn', { roomCode: currentRoomCode });
 });
 
@@ -173,10 +197,6 @@ socket.on('game-started', (data) => {
     showRoundStartAnimation(() => {
         showScreen('game');
         playerCountGame.querySelector('span').textContent = data.playerCount;
-        // Ensure myPlayerId is set
-        if (!myPlayerId) {
-            myPlayerId = socket.id;
-        }
         updateTurnDisplay(data.currentTurn);
 
         // Reset reveal panel and button each round
@@ -297,6 +317,7 @@ function updateTurnDisplay(turnInfo) {
         currentTurnText.style.color = '#667eea';
         currentTurnText.style.fontWeight = 'bold';
         yourTurnControls.style.display = 'block';
+        doneSpeakingBtn.disabled = false;
     } else {
         currentTurnText.textContent = `🎤 ${turnInfo.playerName}'s turn`;
         currentTurnText.style.color = '#666';

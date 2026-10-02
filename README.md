@@ -91,3 +91,4 @@ Edit the `wordPairs.json` file to add or modify word pairs. Each pair should be 
 - Free tiers may have some limitations (e.g., sleep after inactivity on Render)
 - For better performance, consider upgrading to a paid plan if you have many concurrent users
 
+
