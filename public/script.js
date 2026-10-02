@@ -5,13 +5,17 @@ let isHost = false;
 let playerName = '';
 
 // Persistent player identity, survives page reloads and socket reconnects
-// (network blips, tab backgrounding, etc.) so the server can recognize a
-// reconnect as the SAME player instead of adding a duplicate "ghost" entry.
+// within THIS tab (network blips, tab backgrounding, etc.) so the server can
+// recognize a reconnect as the SAME player instead of adding a duplicate
+// "ghost" entry. Uses sessionStorage (not localStorage) because it's scoped
+// per-tab - localStorage is shared across every tab of the same browser,
+// which would make two tabs opened by the same person collide onto the same
+// playerId and hijack each other's slot in the room.
 function getOrCreatePlayerId() {
-    let id = localStorage.getItem('wordGamePlayerId');
+    let id = sessionStorage.getItem('wordGamePlayerId');
     if (!id) {
         id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
-        localStorage.setItem('wordGamePlayerId', id);
+        sessionStorage.setItem('wordGamePlayerId', id);
     }
     return id;
 }
