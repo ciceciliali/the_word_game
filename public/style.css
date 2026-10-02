@@ -422,6 +422,92 @@ input[type="text"]:focus {
     }
 }
 
+.voting-panel {
+    margin: 25px 0;
+    padding: 20px;
+    background: #f1f3ff;
+    border-radius: 10px;
+    border: 2px solid #c9d1ff;
+    text-align: center;
+}
+
+.voting-panel h3 {
+    margin-bottom: 5px;
+}
+
+.voting-panel p {
+    color: #555;
+    margin-bottom: 15px;
+}
+
+.voting-players {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.vote-btn {
+    width: auto;
+    margin-top: 0;
+    padding: 10px 18px;
+}
+
+.vote-btn.selected {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.vote-giveup-btn {
+    width: auto;
+    padding: 10px 18px;
+    margin-top: 15px;
+}
+
+.vote-status {
+    margin-top: 15px;
+    font-style: italic;
+    color: #667eea;
+}
+
+#done-voting-btn {
+    max-width: 260px;
+    margin: 15px auto 0;
+}
+
+.vote-results-panel {
+    margin: 25px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border: 2px solid #e0e0e0;
+    text-align: center;
+}
+
+#vote-tally-list {
+    list-style: none;
+    margin: 10px 0;
+}
+
+#vote-tally-list li {
+    padding: 8px;
+    margin: 4px 0;
+    background: white;
+    border-radius: 6px;
+    border-left: 4px solid #667eea;
+}
+
+.vote-outcome {
+    margin-top: 12px;
+    padding: 10px;
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    font-weight: bold;
+    color: #856404;
+    font-size: 1.05em;
+}
+
 #room-code-display, #game-room-code {
     color: #764ba2;
     font-weight: bold;

@@ -49,6 +49,68 @@ function broadcastPlayers(room, eventName) {
   });
 }
 
+// Tally room.votes and either announce a result (one player uniquely has
+// the most votes) or declare the vote inconclusive (tie at the top, or
+// nobody got more than a single vote) and send the group back for another
+// round of discussion.
+function resolveVotes(room, roomCode) {
+  const tally = new Map();
+  room.votes.forEach((votedForId) => {
+    if (!votedForId) return; // gave up their vote - doesn't count towards anyone
+    tally.set(votedForId, (tally.get(votedForId) || 0) + 1);
+  });
+
+  let maxVotes = 0;
+  tally.forEach((count) => {
+    if (count > maxVotes) maxVotes = count;
+  });
+  const topCandidates = Array.from(tally.keys()).filter(id => tally.get(id) === maxVotes);
+
+  const tallyNamed = Array.from(tally.entries()).map(([playerId, count]) => {
+    const player = room.players.get(playerId);
+    return { playerId, playerName: player ? player.name : 'Unknown', votes: count };
+  });
+
+  room.votes.clear();
+
+  if (maxVotes <= 1 || topCandidates.length > 1) {
+    // No decisive majority - back to another round of discussion.
+    room.gameState = 'playing';
+    room.currentTurnIndex = 0;
+
+    const firstPlayerId = room.playerOrder[0];
+    const firstPlayer = firstPlayerId ? room.players.get(firstPlayerId) : null;
+
+    io.to(roomCode).emit('vote-inconclusive', {
+      tally: tallyNamed,
+      currentTurn: firstPlayer ? {
+        playerId: firstPlayerId,
+        playerName: firstPlayer.name,
+        playerIndex: 0
+      } : null
+    });
+
+    console.log(`Vote inconclusive in room ${roomCode}, back to discussion`);
+  } else {
+    const votedOutId = topCandidates[0];
+    const votedOutPlayer = room.players.get(votedOutId);
+    const wasImpostor = !!(room.currentImpostor && room.currentImpostor.playerId === votedOutId);
+
+    room.gameState = 'finished';
+
+    io.to(roomCode).emit('vote-results', {
+      tally: tallyNamed,
+      votedOutName: votedOutPlayer ? votedOutPlayer.name : 'Unknown',
+      wasImpostor,
+      impostorName: room.currentImpostor ? room.currentImpostor.name : 'Unknown',
+      wordA: room.currentWords ? room.currentWords.wordA : null,
+      wordB: room.currentWords ? room.currentWords.wordB : null
+    });
+
+    console.log(`Room ${roomCode} voted out ${votedOutPlayer ? votedOutPlayer.name : votedOutId} (impostor: ${wasImpostor})`);
+  }
+}
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -64,11 +126,12 @@ io.on('connection', (socket) => {
     if (!rooms.has(roomCode)) {
       rooms.set(roomCode, {
         players: new Map(), // keyed by persistent playerId
-        gameState: 'waiting', // waiting, playing, finished
+        gameState: 'waiting', // waiting, playing, voting, finished
         currentWords: null,
         wordAssignments: new Map(), // keyed by playerId
         playerOrder: [], // array of playerId
         currentTurnIndex: 0,
+        votes: new Map(), // voterPlayerId -> votedForPlayerId
         gameSettings: {
           blankCardMode: false
         }
@@ -165,6 +228,7 @@ io.on('connection', (socket) => {
     room.currentWords = { wordA, wordB };
     room.currentImpostor = { playerId: impostorPlayerId, name: impostor.name };
     room.gameState = 'playing';
+    room.votes.clear();
 
     // Initialize turn order (randomize order) - stores playerId, not socket.id,
     // so it stays valid across reconnects.
@@ -223,6 +287,19 @@ io.on('connection', (socket) => {
 
     // Move to next player
     room.currentTurnIndex = (room.currentTurnIndex + 1) % room.playerOrder.length;
+
+    if (room.currentTurnIndex === 0) {
+      // Wrapped back to the first speaker - everyone has spoken once this
+      // round, so move to a vote instead of starting another speaking turn.
+      room.gameState = 'voting';
+      room.votes.clear();
+      io.to(roomCode).emit('voting-started', {
+        players: getPublicPlayers(room)
+      });
+      console.log(`Room ${roomCode}: speaking round complete, voting started`);
+      return;
+    }
+
     const nextTurnPlayerId = room.playerOrder[room.currentTurnIndex];
     const nextTurnPlayer = room.players.get(nextTurnPlayerId);
 
@@ -235,6 +312,45 @@ io.on('connection', (socket) => {
         }
       });
     }
+  });
+
+  socket.on('cast-vote', (data) => {
+    // votedForId is omitted/null when a player chooses to give up their vote
+    // (abstain) instead of accusing someone.
+    const { roomCode, votedForId } = data;
+    const room = rooms.get(roomCode);
+
+    if (!room || room.gameState !== 'voting') return;
+
+    const voterId = socket.playerId;
+    if (!voterId || !room.players.has(voterId)) return;
+
+    if (votedForId) {
+      if (!room.players.has(votedForId)) return;
+      if (votedForId === voterId) return; // no self-votes
+      room.votes.set(voterId, votedForId);
+    } else {
+      room.votes.set(voterId, null); // gave up their vote
+    }
+
+    // No auto-resolve and no time limit - the room owner decides when to
+    // end voting (via 'end-voting') and see the results.
+    io.to(roomCode).emit('vote-progress', {
+      votesIn: room.votes.size,
+      totalVoters: room.players.size
+    });
+  });
+
+  socket.on('end-voting', (data) => {
+    const { roomCode } = data;
+    const room = rooms.get(roomCode);
+
+    if (!room || room.gameState !== 'voting') return;
+
+    const player = room.players.get(socket.playerId);
+    if (!player || !player.isHost) return; // only the room owner can end voting
+
+    resolveVotes(room, roomCode);
   });
 
   socket.on('reveal-words', (data) => {
@@ -296,8 +412,10 @@ io.on('connection', (socket) => {
               }
             }
 
-            // If game is playing and the disconnected player was the current turn, move to next
-            if (room.gameState === 'playing' && room.playerOrder.length > 0) {
+            // Keep playerOrder/currentTurnIndex consistent whether we're
+            // mid-speaking or mid-voting, so a later round of discussion
+            // still has a correct turn order.
+            if ((room.gameState === 'playing' || room.gameState === 'voting') && room.playerOrder.length > 0) {
               const disconnectedIndex = room.playerOrder.indexOf(playerId);
               if (disconnectedIndex !== -1) {
                 room.playerOrder.splice(disconnectedIndex, 1);
@@ -310,8 +428,8 @@ io.on('connection', (socket) => {
                   room.currentTurnIndex--;
                 }
 
-                // Notify about turn change if there are still players
-                if (room.playerOrder.length > 0) {
+                // Notify about turn change only if we're actively speaking
+                if (room.gameState === 'playing' && room.playerOrder.length > 0) {
                   const currentTurnPlayerId = room.playerOrder[room.currentTurnIndex];
                   const currentTurnPlayer = room.players.get(currentTurnPlayerId);
                   if (currentTurnPlayer) {
@@ -325,6 +443,13 @@ io.on('connection', (socket) => {
                   }
                 }
               }
+            }
+
+            // If a voter leaves mid-vote, drop their vote. There's no auto
+            // resolve here - the room owner decides when to end voting via
+            // the "Done Voting" button, even if someone left.
+            if (room.gameState === 'voting') {
+              room.votes.delete(playerId);
             }
 
             broadcastPlayers(room, 'player-left');

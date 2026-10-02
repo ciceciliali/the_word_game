@@ -81,13 +81,26 @@
                     <p id="reveal-impostor-name" class="impostor-reveal"></p>
                 </div>
             </div>
-            <div class="turn-indicator">
+            <div id="turn-indicator" class="turn-indicator">
                 <div id="turn-display" class="turn-display">
                     <p id="current-turn-text">Waiting for game to start...</p>
                 </div>
                 <div id="your-turn-controls" class="your-turn-controls" style="display: none;">
                     <button id="done-speaking-btn" class="btn btn-primary">Done Speaking</button>
                 </div>
+            </div>
+            <div id="voting-panel" class="voting-panel" style="display: none;">
+                <h3>🗳️ Time to Vote!</h3>
+                <p>Everyone has spoken. Who do you think is the impostor?</p>
+                <div id="voting-players" class="voting-players"></div>
+                <button id="give-up-vote-btn" class="btn btn-secondary vote-giveup-btn">Give Up Vote</button>
+                <p id="vote-status" class="vote-status"></p>
+                <button id="done-voting-btn" class="btn btn-primary" style="display: none;">Done Voting - Show Results</button>
+            </div>
+            <div id="vote-results-panel" class="vote-results-panel" style="display: none;">
+                <h3>Vote Results</h3>
+                <ul id="vote-tally-list"></ul>
+                <p id="vote-outcome" class="vote-outcome"></p>
             </div>
             <div id="host-controls-game" class="host-controls" style="display: none;">
                 <button id="reveal-btn" class="btn btn-primary">Reveal Words</button>

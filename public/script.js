@@ -54,9 +54,19 @@ const revealPanel = document.getElementById('reveal-panel');
 const revealCommonWord = document.getElementById('reveal-common-word');
 const revealImpostorWord = document.getElementById('reveal-impostor-word');
 const revealImpostorName = document.getElementById('reveal-impostor-name');
+const turnIndicator = document.getElementById('turn-indicator');
+const votingPanel = document.getElementById('voting-panel');
+const votingPlayers = document.getElementById('voting-players');
+const voteStatus = document.getElementById('vote-status');
+const voteResultsPanel = document.getElementById('vote-results-panel');
+const voteTallyList = document.getElementById('vote-tally-list');
+const voteOutcome = document.getElementById('vote-outcome');
+const giveUpVoteBtn = document.getElementById('give-up-vote-btn');
+const doneVotingBtn = document.getElementById('done-voting-btn');
 
 let currentTurnPlayerId = null;
 let myPlayerId = playerId;
+let hasVoted = false;
 
 // Join room
 joinBtn.addEventListener('click', () => {
@@ -167,6 +177,27 @@ doneSpeakingBtn.addEventListener('click', () => {
     socket.emit('next-turn', { roomCode: currentRoomCode });
 });
 
+// Give up vote - counts as having responded, but votes for no one
+if (giveUpVoteBtn) {
+    giveUpVoteBtn.addEventListener('click', () => {
+        if (hasVoted) return;
+        hasVoted = true;
+        lockVotingButtons();
+        giveUpVoteBtn.classList.add('selected');
+        socket.emit('cast-vote', { roomCode: currentRoomCode, votedForId: null });
+    });
+}
+
+// Done voting (room owner only) - ends voting whenever the owner decides,
+// there is no time limit, so votes may still be missing from some players.
+if (doneVotingBtn) {
+    doneVotingBtn.addEventListener('click', () => {
+        if (doneVotingBtn.disabled) return;
+        doneVotingBtn.disabled = true;
+        socket.emit('end-voting', { roomCode: currentRoomCode });
+    });
+}
+
 // Socket event handlers
 socket.on('player-joined', (data) => {
     isHost = data.isHost;
@@ -201,6 +232,13 @@ socket.on('game-started', (data) => {
     showRoundStartAnimation(() => {
         showScreen('game');
         playerCountGame.querySelector('span').textContent = data.playerCount;
+
+        // Reset voting UI and show the turn indicator for the new round
+        hasVoted = false;
+        if (votingPanel) votingPanel.style.display = 'none';
+        if (voteResultsPanel) voteResultsPanel.style.display = 'none';
+        if (turnIndicator) turnIndicator.style.display = 'block';
+
         updateTurnDisplay(data.currentTurn);
 
         // Reset reveal panel and button each round
@@ -249,6 +287,51 @@ socket.on('turn-changed', (data) => {
 
 socket.on('error', (data) => {
     showError(data.message);
+});
+
+socket.on('voting-started', (data) => {
+    hasVoted = false;
+    if (turnIndicator) turnIndicator.style.display = 'none';
+    if (voteResultsPanel) voteResultsPanel.style.display = 'none';
+    renderVotingPanel(data.players);
+    if (votingPanel) votingPanel.style.display = 'block';
+
+    // Only the room owner can end voting; no time limit otherwise
+    if (doneVotingBtn) {
+        doneVotingBtn.style.display = isHost ? 'block' : 'none';
+        doneVotingBtn.disabled = false;
+    }
+});
+
+socket.on('vote-progress', (data) => {
+    if (voteStatus) {
+        voteStatus.textContent = `${data.votesIn}/${data.totalVoters} players have responded`;
+    }
+});
+
+socket.on('vote-results', (data) => {
+    if (votingPanel) votingPanel.style.display = 'none';
+    renderVoteTally(data.tally);
+    if (voteOutcome) {
+        voteOutcome.textContent = data.wasImpostor
+            ? `✅ ${data.votedOutName} was voted out and WAS the impostor! The crew wins!`
+            : `❌ ${data.votedOutName} was voted out but was NOT the impostor (it was ${data.impostorName}). The impostor wins!`;
+    }
+    if (voteResultsPanel) voteResultsPanel.style.display = 'block';
+});
+
+socket.on('vote-inconclusive', (data) => {
+    if (votingPanel) votingPanel.style.display = 'none';
+    renderVoteTally(data.tally);
+    if (voteOutcome) {
+        voteOutcome.textContent = 'No majority - back to discussion!';
+    }
+    if (voteResultsPanel) voteResultsPanel.style.display = 'block';
+    setTimeout(() => {
+        if (voteResultsPanel) voteResultsPanel.style.display = 'none';
+        if (turnIndicator) turnIndicator.style.display = 'block';
+        if (data.currentTurn) updateTurnDisplay(data.currentTurn);
+    }, 2500);
 });
 
 socket.on('words-revealed', (data) => {
@@ -328,6 +411,58 @@ function updateTurnDisplay(turnInfo) {
         currentTurnText.style.fontWeight = 'normal';
         yourTurnControls.style.display = 'none';
     }
+}
+
+function renderVotingPanel(players) {
+    if (!votingPlayers) return;
+    votingPlayers.innerHTML = '';
+    if (voteStatus) voteStatus.textContent = '';
+    if (giveUpVoteBtn) {
+        giveUpVoteBtn.disabled = false;
+        giveUpVoteBtn.classList.remove('selected');
+    }
+
+    players
+        .filter(player => player.id !== myPlayerId)
+        .forEach(player => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-secondary vote-btn';
+            btn.textContent = player.name;
+            btn.addEventListener('click', () => {
+                if (hasVoted) return;
+                hasVoted = true;
+                btn.classList.add('selected');
+                lockVotingButtons();
+                socket.emit('cast-vote', { roomCode: currentRoomCode, votedForId: player.id });
+            });
+            votingPlayers.appendChild(btn);
+        });
+}
+
+// Disable every vote option (player buttons + give up) once a choice has
+// been locked in - a player can cast one vote or give up, not both.
+function lockVotingButtons() {
+    if (votingPlayers) {
+        Array.from(votingPlayers.querySelectorAll('button')).forEach(b => {
+            b.disabled = true;
+        });
+    }
+    if (giveUpVoteBtn) {
+        giveUpVoteBtn.disabled = true;
+    }
+}
+
+function renderVoteTally(tally) {
+    if (!voteTallyList) return;
+    voteTallyList.innerHTML = '';
+    tally
+        .slice()
+        .sort((a, b) => b.votes - a.votes)
+        .forEach(entry => {
+            const li = document.createElement('li');
+            li.textContent = `${entry.playerName}: ${entry.votes} vote${entry.votes === 1 ? '' : 's'}`;
+            voteTallyList.appendChild(li);
+        });
 }
 
 function showRoundStartAnimation(callback) {
