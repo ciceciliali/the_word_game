@@ -49,6 +49,16 @@ function broadcastPlayers(room, eventName) {
   });
 }
 
+function impostorHadBlankCard(room) {
+  let hadBlankCard = false;
+  room.wordAssignments.forEach((assignment) => {
+    if (assignment.isImpostor && assignment.isBlankCard) {
+      hadBlankCard = true;
+    }
+  });
+  return hadBlankCard;
+}
+
 // Tally room.votes and either announce a result (one player uniquely has
 // the most votes) or declare the vote inconclusive (tie at the top, or
 // nobody got more than a single vote) and send the group back for another
@@ -104,7 +114,8 @@ function resolveVotes(room, roomCode) {
       wasImpostor,
       impostorName: room.currentImpostor ? room.currentImpostor.name : 'Unknown',
       wordA: room.currentWords ? room.currentWords.wordA : null,
-      wordB: room.currentWords ? room.currentWords.wordB : null
+      wordB: room.currentWords ? room.currentWords.wordB : null,
+      impostorHadBlankCard: impostorHadBlankCard(room)
     });
 
     console.log(`Room ${roomCode} voted out ${votedOutPlayer ? votedOutPlayer.name : votedOutId} (impostor: ${wasImpostor})`);
@@ -133,7 +144,9 @@ io.on('connection', (socket) => {
         currentTurnIndex: 0,
         votes: new Map(), // voterPlayerId -> votedForPlayerId
         gameSettings: {
-          blankCardMode: false
+          blankCardMode: false,
+          avoidBlankFirstSpeaker: false,
+          impostorKnowsRole: false
         }
       });
     }
@@ -183,7 +196,9 @@ io.on('connection', (socket) => {
     // Update game settings
     if (gameSettings) {
       room.gameSettings = {
-        blankCardMode: gameSettings.blankCardMode || false
+        blankCardMode: gameSettings.blankCardMode || false,
+        avoidBlankFirstSpeaker: gameSettings.avoidBlankFirstSpeaker || false,
+        impostorKnowsRole: gameSettings.impostorKnowsRole || false
       };
     }
 
@@ -237,6 +252,17 @@ io.on('connection', (socket) => {
       const j = Math.floor(Math.random() * (i + 1));
       [room.playerOrder[i], room.playerOrder[j]] = [room.playerOrder[j], room.playerOrder[i]];
     }
+
+    // An impostor with a blank card has no word to work off of, so speaking
+    // first would give them nothing to go on. If enabled, bump them to at
+    // least second if the shuffle happened to put them first.
+    if (room.gameSettings.avoidBlankFirstSpeaker) {
+      const impostorAssignment = room.wordAssignments.get(impostorPlayerId);
+      if (impostorAssignment && impostorAssignment.isBlankCard && room.playerOrder[0] === impostorPlayerId && room.playerOrder.length > 1) {
+        [room.playerOrder[0], room.playerOrder[1]] = [room.playerOrder[1], room.playerOrder[0]];
+      }
+    }
+
     room.currentTurnIndex = 0;
 
     // Send words to each player
@@ -245,7 +271,8 @@ io.on('connection', (socket) => {
       io.to(player.socketId).emit('word-assigned', {
         word: assignment.word,
         isImpostor: assignment.isImpostor,
-        isBlankCard: assignment.isBlankCard || false
+        isBlankCard: assignment.isBlankCard || false,
+        revealImpostorRole: assignment.isImpostor && room.gameSettings.impostorKnowsRole
       });
     });
 
@@ -361,14 +388,6 @@ io.on('connection', (socket) => {
 
     const { wordA, wordB } = room.currentWords;
 
-    // Check if impostor had a blank card this round
-    let impostorHadBlankCard = false;
-    room.wordAssignments.forEach((assignment) => {
-      if (assignment.isImpostor && assignment.isBlankCard) {
-        impostorHadBlankCard = true;
-      }
-    });
-
     // Get impostor info
     const impostorName = room.currentImpostor ? room.currentImpostor.name : 'Unknown';
 
@@ -376,7 +395,7 @@ io.on('connection', (socket) => {
       wordA,
       wordB,
       blankCardMode: room.gameSettings && room.gameSettings.blankCardMode || false,
-      impostorHadBlankCard,
+      impostorHadBlankCard: impostorHadBlankCard(room),
       impostorName: impostorName
     });
   });

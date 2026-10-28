@@ -37,6 +37,18 @@
                             <span>Impostor has 25% chance of blank card</span>
                         </label>
                     </div>
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="avoid-blank-first-toggle">
+                            <span>If impostor gets a blank card, don't let them speak first</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="impostor-knows-toggle">
+                            <span>Impostor knows they are the impostor</span>
+                        </label>
+                    </div>
                 </div>
                 <button id="start-btn" class="btn btn-primary" disabled>Start Game</button>
                 <p class="info-text">Need at least 3 players to start</p>
@@ -61,6 +73,7 @@
                         <div class="word-card-front">
                             <h3>Your Word</h3>
                             <div id="your-word" class="word-text"></div>
+                            <div id="impostor-role-badge" class="impostor-role-badge" style="display: none;">🎭 You are the IMPOSTOR!</div>
                             <button id="flip-btn" class="flip-btn">👁️ Hide Word</button>
                         </div>
                         <div class="word-card-back">

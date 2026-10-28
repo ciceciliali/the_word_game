@@ -39,6 +39,7 @@ const hostControls = document.getElementById('host-controls');
 const hostControlsGame = document.getElementById('host-controls-game');
 const waitingMessage = document.getElementById('waiting-message');
 const yourWord = document.getElementById('your-word');
+const impostorRoleBadge = document.getElementById('impostor-role-badge');
 const wordCard = document.getElementById('word-card');
 const flipBtn = document.getElementById('flip-btn');
 const flipBackBtn = document.getElementById('flip-back-btn');
@@ -48,6 +49,8 @@ const currentTurnText = document.getElementById('current-turn-text');
 const yourTurnControls = document.getElementById('your-turn-controls');
 const doneSpeakingBtn = document.getElementById('done-speaking-btn');
 const blankCardToggle = document.getElementById('blank-card-toggle');
+const avoidBlankFirstToggle = document.getElementById('avoid-blank-first-toggle');
+const impostorKnowsToggle = document.getElementById('impostor-knows-toggle');
 const roundStartAnimation = document.getElementById('round-start-animation');
 const revealBtn = document.getElementById('reveal-btn');
 const revealPanel = document.getElementById('reveal-panel');
@@ -103,13 +106,9 @@ socket.on('connect', () => {
 
 // Start game (host only)
 startBtn.addEventListener('click', () => {
-    const gameSettings = {
-        blankCardMode: blankCardToggle ? blankCardToggle.checked : false
-    };
-    
     socket.emit('start-game', { 
         roomCode: currentRoomCode,
-        gameSettings: gameSettings
+        gameSettings: getGameSettings()
     });
 });
 
@@ -123,13 +122,9 @@ if (revealBtn) {
 
 // New round (host only)
 newRoundBtn.addEventListener('click', () => {
-    const gameSettings = {
-        blankCardMode: blankCardToggle ? blankCardToggle.checked : false
-    };
-    
     socket.emit('start-game', { 
         roomCode: currentRoomCode,
-        gameSettings: gameSettings
+        gameSettings: getGameSettings()
     });
 
     // Reset reveal panel and button state for next round
@@ -265,7 +260,11 @@ socket.on('word-assigned', (data) => {
         yourWord.style.fontStyle = 'normal';
         yourWord.style.fontSize = '3em';
     }
-    // Don't reveal who is the impostor - everyone sees their word the same way
+    // Only reveal impostor status if the room owner enabled that setting -
+    // otherwise everyone sees their word the same way, no indication given.
+    if (impostorRoleBadge) {
+        impostorRoleBadge.style.display = data.revealImpostorRole ? 'block' : 'none';
+    }
     
     if (isHost) {
         hostControlsGame.style.display = 'block';
@@ -320,7 +319,11 @@ socket.on('vote-results', (data) => {
 
     // Majority reached - reveal who the impostor actually was and both words
     if (voteCommonWord) voteCommonWord.textContent = `Common word: ${data.wordA}`;
-    if (voteImpostorWord) voteImpostorWord.textContent = `Impostor word: ${data.wordB}`;
+    if (voteImpostorWord) {
+        voteImpostorWord.textContent = data.impostorHadBlankCard
+            ? 'Impostor word: (Blank card this round)'
+            : `Impostor word: ${data.wordB}`;
+    }
     if (voteImpostorName) voteImpostorName.textContent = `🎭 The impostor was: ${data.impostorName}`;
     if (voteWordsReveal) voteWordsReveal.style.display = 'block';
 
@@ -389,6 +392,14 @@ function updatePlayersList(players) {
         
         playersList.appendChild(li);
     });
+}
+
+function getGameSettings() {
+    return {
+        blankCardMode: blankCardToggle ? blankCardToggle.checked : false,
+        avoidBlankFirstSpeaker: avoidBlankFirstToggle ? avoidBlankFirstToggle.checked : false,
+        impostorKnowsRole: impostorKnowsToggle ? impostorKnowsToggle.checked : false
+    };
 }
 
 function updateStartButton(playerCount) {
